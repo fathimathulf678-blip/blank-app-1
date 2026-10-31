@@ -181,7 +181,8 @@ if df is not None:
                columns=model.classes_
 )
 
-              st.dataframe(cm_df)
+              st.dataframe(cm_df
+)
 
 
 
