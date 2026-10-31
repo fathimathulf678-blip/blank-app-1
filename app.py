@@ -15,9 +15,8 @@ from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     classification_report,
-    ConfusionMatrixDisplay
 )
-import matplotlib.pyplot as plt
+
 
 st.set_page_config(
     page_title="Landmines Classification",
