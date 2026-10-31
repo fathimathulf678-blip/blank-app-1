@@ -15,8 +15,9 @@ from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     classification_report,
+    ConfusionMatrixDisplay
 )
-
+import matplotlib.pyplot as plt
 
 st.set_page_config(
     page_title="Landmines Classification",
@@ -169,35 +170,18 @@ if df is not None:
                 st.write("Training samples:", len(X_train))
                 st.write("Testing samples:", len(X_test))
 
-                
-
                 st.header("6. Confusion Matrix")
 
-cm = confusion_matrix(y_test, y_pred)
+                cm = confusion_matrix(y_test, y_pred)
 
-cm_df = pd.DataFrame(
-    cm,
-    index=model.classes_,
-    columns=model.classes_
-)
+                fig, ax = plt.subplots()
+                ConfusionMatrixDisplay(
+                    confusion_matrix=cm,
+                    display_labels=model.classes_
+                ).plot(ax=ax, cmap="Blues", xticks_rotation=45)
 
-st.dataframe(cm_df)
-
-                
-
-                
-
-
-              
-
-
-
-
-                
-                
-
-                
-            
+                st.pyplot(fig)
+                plt.close(fig)
 
                 st.header("7. Classification Report")
 
@@ -252,3 +236,4 @@ st.dataframe(cm_df)
 
 else:
     st.info("Please upload your landmines CSV or ZIP dataset to begin.")
+
