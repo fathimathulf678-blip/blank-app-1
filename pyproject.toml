@@ -1,12 +1,17 @@
+
 [project]
-name = "blank-app-template"
+name = "landmines-classification"
 version = "0.1.0"
-description = "A simple Streamlit app template."
-readme = "README.md"
-requires-python = ">=3.14"
+description = "Decision Tree Classification Project"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "streamlit>=1.61.1",
+    "streamlit",
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "matplotlib"
 ]
 
 [tool.uv]
 package = false
+
