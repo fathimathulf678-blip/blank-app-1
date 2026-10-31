@@ -169,18 +169,27 @@ if df is not None:
                 st.write("Training samples:", len(X_train))
                 st.write("Testing samples:", len(X_test))
 
+                
+
                 st.header("6. Confusion Matrix")
 
-                cm = confusion_matrix(y_test, y_pred)
+cm = confusion_matrix(y_test, y_pred)
 
-                fig, ax = plt.subplots()
-                ConfusionMatrixDisplay(
-                    confusion_matrix=cm,
-                    display_labels=model.classes_
-                ).plot(ax=ax, cmap="Blues", xticks_rotation=45)
+cm_df = pd.DataFrame(
+    cm,
+    index=model.classes_,
+    columns=model.classes_
+)
 
-                st.pyplot(fig)
-                plt.close(fig)
+st.dataframe(cm_df)
+
+
+
+                
+                
+
+                
+            
 
                 st.header("7. Classification Report")
 
