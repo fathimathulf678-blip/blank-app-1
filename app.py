@@ -173,16 +173,23 @@ if df is not None:
 
                 st.header("6. Confusion Matrix")
 
-                cm = confusion_matrix(y_test, y_pred)
+cm = confusion_matrix(y_test, y_pred)
 
-                cm_df = pd.DataFrame(
-                 cm,
-                index=model.classes_,
-               columns=model.classes_
+cm_df = pd.DataFrame(
+    cm,
+    index=model.classes_,
+    columns=model.classes_
 )
 
-              st.dataframe(cm_df
-)
+st.dataframe(cm_df)
+
+                
+
+                
+
+
+              
+
 
 
 
