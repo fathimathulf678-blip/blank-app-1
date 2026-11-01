@@ -2,254 +2,210 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import zipfile
-import io
 
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     classification_report
 )
-    
-    
-    
-    
-
-
 
 st.set_page_config(
-    page_title="Landmines Classification",
+    page_title="Landmine Classification",
     page_icon="🌍",
     layout="wide"
 )
 
-st.title("🌍 Landmines Detection - Decision Tree Classification")
-st.write("Machine Learning based Landmines Classification Project")
+st.title("🌍 Landmine Classification System")
+st.write("Decision Tree Classification using V, H and S features")
 
+# 1. Load dataset
 st.header("1. Upload Dataset")
 
-uploaded_file = st.file_uploader(
-    "Upload landmines.csv or a ZIP containing a CSV file",
-    type=["csv", "zip"]
+if Path("landmines.csv").exists():
+    df = pd.read_csv("landmines.csv")
+    st.success("Dataset loaded successfully!")
+else:
+    uploaded_file = st.file_uploader(
+        "Upload landmines.csv",
+        type=["csv"]
+    )
+    if uploaded_file is None:
+        st.info("Please upload your landmines.csv file.")
+        st.stop()
+    df = pd.read_csv(uploaded_file)
+
+# 2. Display dataset
+st.header("2. Dataset Overview")
+
+st.write("Dataset shape:", df.shape)
+st.dataframe(df.head())
+
+# 3. Prepare features and target
+required_columns = ["V", "H", "S", "M"]
+
+if not all(col in df.columns for col in required_columns):
+    st.error("Dataset must contain V, H, S and M columns.")
+    st.stop()
+
+X = df[["V", "H", "S"]].apply(
+    pd.to_numeric, errors="coerce"
 )
 
-df = None
+y = df["M"]
 
-if uploaded_file is not None:
-    try:
-        if uploaded_file.name.endswith(".zip"):
-            with zipfile.ZipFile(uploaded_file) as z:
-                csv_files = [
-                    f for f in z.namelist()
-                    if f.lower().endswith(".csv")
-                    and not f.startswith("__MACOSX/")
-                ]
+valid_rows = X.notna().all(axis=1) & y.notna()
+X = X.loc[valid_rows]
+y = y.loc[valid_rows].astype(str)
 
-                if csv_files:
-                    df = pd.read_csv(z.open(csv_files[0]))
-                else:
-                    st.error("No CSV file found inside ZIP.")
+if y.nunique() < 2:
+    st.error("Target M must contain at least two classes.")
+    st.stop()
 
-        else:
-            df = pd.read_csv(uploaded_file)
+# 4. Model settings
+st.header("3. Decision Tree Settings")
 
-    except Exception as e:
-        st.error(f"Error reading dataset: {e}")
+criterion = st.selectbox(
+    "Select criterion",
+    ["gini", "entropy"]
+)
 
-if df is not None:
+max_depth = st.slider(
+    "Select Maximum Depth",
+    min_value=1,
+    max_value=20,
+    value=5
+)
 
-    st.success("Dataset uploaded successfully!")
+# 5. Train model
+if st.button("Train Decision Tree Model"):
 
-    st.header("2. Dataset Preview")
-    st.dataframe(df.head(10), use_container_width=True)
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Total Rows", df.shape[0])
-    col2.metric("Total Columns", df.shape[1])
-    col3.metric("Missing Values", int(df.isnull().sum().sum()))
-
-    st.subheader("3. Dataset Information")
-    st.write(df.describe(include="all"))
-
-    st.header("4. Select Target Column")
-
-    target = st.selectbox(
-        "Choose the column to predict",
-        df.columns
+    stratify_value = (
+        y if y.value_counts().min() >= 2 else None
     )
 
-    if st.button("Train Decision Tree Model"):
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=stratify_value
+    )
 
-        data = df.dropna(subset=[target]).copy()
+    model = DecisionTreeClassifier(
+        criterion=criterion,
+        max_depth=max_depth,
+        random_state=42
+    )
 
-        X = data.drop(columns=[target])
-        y = data[target]
+    model.fit(X_train, y_train)
 
-        # Remove columns containing only missing values
-        X = X.dropna(axis=1, how="all")
+    predictions = model.predict(X_test)
 
-        if X.shape[1] == 0:
-            st.error("No usable feature columns found.")
+    accuracy = accuracy_score(y_test, predictions)
 
-        elif y.nunique() < 2:
-            st.error("Target column must contain at least two classes.")
+    st.session_state["model"] = model
+    st.session_state["accuracy"] = accuracy
+    st.session_state["labels"] = sorted(y.unique())
+    st.session_state["matrix"] = confusion_matrix(
+        y_test,
+        predictions,
+        labels=st.session_state["labels"]
+    )
+    st.session_state["report"] = classification_report(
+        y_test,
+        predictions,
+        zero_division=0
+    )
 
-        else:
-            numeric_cols = X.select_dtypes(
-                include=np.number
-            ).columns.tolist()
+# 6. Model performance
+if "model" in st.session_state:
 
-            categorical_cols = X.select_dtypes(
-                exclude=np.number
-            ).columns.tolist()
+    st.header("4. Model Performance")
 
-            numeric_pipeline = Pipeline([
-                ("imputer", SimpleImputer(strategy="median"))
-            ])
+    st.metric(
+        "Decision Tree Accuracy",
+        f"{st.session_state['accuracy'] * 100:.2f}%"
+    )
 
-            categorical_pipeline = Pipeline([
-                ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("encoder", OneHotEncoder(handle_unknown="ignore"))
-            ])
+    st.write("Training samples:", int(len(X) * 0.8))
+    st.write("Testing samples:", len(X) - int(len(X) * 0.8))
 
-            transformers = []
+    st.header("5. Confusion Matrix")
 
-            if numeric_cols:
-                transformers.append(
-                    ("numeric", numeric_pipeline, numeric_cols)
-                )
+    labels = st.session_state["labels"]
 
-            if categorical_cols:
-                transformers.append(
-                    ("categorical", categorical_pipeline, categorical_cols)
-                )
+    matrix_df = pd.DataFrame(
+        st.session_state["matrix"],
+        index=labels,
+        columns=labels
+    )
 
-            preprocessor = ColumnTransformer(
-                transformers=transformers
-            )
+    st.dataframe(matrix_df)
 
-            model = Pipeline([
-                ("preprocessing", preprocessor),
-                ("classifier", DecisionTreeClassifier(
-                    criterion="gini",
-                    max_depth=5,
-                    random_state=42
-                ))
-            ])
+    st.header("6. Classification Report")
+    st.text(st.session_state["report"])
 
-            try:
-                stratify_y = None
+    # 7. Feature importance
+    st.header("7. Feature Importance")
 
-                if y.value_counts().min() >= 2:
-                    stratify_y = y
+    importance = pd.DataFrame({
+        "Feature": ["V", "H", "S"],
+        "Importance": st.session_state["model"].feature_importances_
+    })
 
-                X_train, X_test, y_train, y_test = train_test_split(
-                    X,
-                    y,
-                    test_size=0.2,
-                    random_state=42,
-                    stratify=stratify_y
-                )
+    st.bar_chart(
+        importance.set_index("Feature")
+    )
 
-                model.fit(X_train, y_train)
+    # 8. User prediction
+    st.header("8. Predict Landmine Class")
 
-                y_pred = model.predict(X_test)
+    st.write("Enter the input values below:")
 
-                accuracy = accuracy_score(y_test, y_pred)
+    with st.form("prediction_form"):
 
-                st.header("5. Model Performance")
+        v = st.number_input(
+            "Enter V value",
+            min_value=float(X["V"].min()),
+            max_value=float(X["V"].max()),
+            value=float(X["V"].median())
+        )
 
-                st.metric(
-                    "Decision Tree Accuracy",
-                    f"{accuracy * 100:.2f}%"
-                )
+        h = st.number_input(
+            "Enter H value",
+            min_value=float(X["H"].min()),
+            max_value=float(X["H"].max()),
+            value=float(X["H"].median())
+        )
 
-                st.write("Training samples:", len(X_train))
-                st.write("Testing samples:", len(X_test))
+        s = st.number_input(
+            "Enter S value",
+            min_value=float(X["S"].min()),
+            max_value=float(X["S"].max()),
+            value=float(X["S"].median())
+        )
 
-                
-                st.header("6. Confusion Matrix")
+        submitted = st.form_submit_button(
+            "Predict Landmine Class"
+        )
 
-                cm = confusion_matrix(y_test, y_pred)
+    if submitted:
 
-                cm_df = pd.DataFrame(
-                    cm,
-                    index=model.classes_,
-                    columns=model.classes_
-                )
+        input_data = pd.DataFrame(
+            [[v, h, s]],
+            columns=["V", "H", "S"]
+        )
 
-                st.dataframe(cm_df)
+        result = st.session_state["model"].predict(input_data)
 
+        st.success(
+            f"Predicted Landmine Class: {result[0]}"
+        )
 
-                
+        st.write("Input values:")
+        st.dataframe(input_data)
 
-                
-                
-                    
-                    
-                
-
-                
-            
-
-                st.header("7. Classification Report")
-
-                report = classification_report(
-                    y_test,
-                    y_pred,
-                    output_dict=True,
-                    zero_division=0
-                )
-
-                st.dataframe(
-                    pd.DataFrame(report).transpose()
-                )
-
-                st.header("8. Feature Importance")
-
-                feature_names = (
-                    model.named_steps["preprocessing"]
-                    .get_feature_names_out()
-                )
-
-                importance = (
-                    model.named_steps["classifier"]
-                    .feature_importances_
-                )
-
-                importance_df = pd.DataFrame({
-                    "Feature": feature_names,
-                    "Importance": importance
-                }).sort_values(
-                    by="Importance",
-                    ascending=False
-                )
-
-                st.bar_chart(
-                    importance_df.set_index("Feature").head(15)
-                )
-
-                st.header("9. Sample Predictions")
-
-                results = pd.DataFrame({
-                    "Actual": y_test.values,
-                    "Predicted": y_pred
-                })
-
-                st.dataframe(results.head(20))
-
-                st.success("Decision Tree model trained successfully!")
-
-            except Exception as e:
-                st.error(f"Model training error: {e}")
-
-else:
-    st.info("Please upload your landmines CSV or ZIP dataset to begin.")
-
+st.caption("Landmine Classification Project | Decision Tree ML")
